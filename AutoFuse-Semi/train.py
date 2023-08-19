@@ -79,24 +79,23 @@ def train(train_dir,
         device = 'cpu'
 
     # prepare the model
-    model = networks.AutoFuse()
+    model = networks.AutoFuse(for_train=True)
     model.to(device)
     if load_model != './':
         print('loading', load_model)
         state_dict = torch.load(load_model, map_location=device)
         model.load_state_dict(state_dict)
     
-    # transfer model
-    SpatialTransformer = networks.SpatialTransformer_block(mode='nearest')
-    SpatialTransformer.to(device)
-    SpatialTransformer.eval()
-    
     # set optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     
     # prepare losses
-    Losses = [losses.NJD(Lambda=1e-5).loss, losses.KL(prior_lambda=50).loss, losses.NCC(win=9).loss]
-    Weights = [1.0, 0.01, 1.0]
+    Losses = [losses.NJD(Lambda=1e-5).loss, losses.KL(prior_lambda=50).loss, losses.NCC(win=9).loss,
+              losses.FocalDice().loss, losses.FocalDice().loss,
+              losses.FocalDice().loss, losses.FocalDice().loss, losses.FocalDice().loss]
+    Weights = [1.0, 0.01, 1.0,
+               1.0, 1.0,
+               1.0, 1.0, 1.0]
             
     # data generator
     train_gen_pairs = datagenerators.gen_pairs(train_dir, train_pairs, batch_size=batch_size)
@@ -139,6 +138,7 @@ def train(train_dir,
         model.eval()
         valid_Dice = []
         valid_NJD = []
+        valid_Seg = []
         for valid_pair in valid_pairs:
             
             # generate inputs (and true outputs)
@@ -153,17 +153,26 @@ def train(train_dir,
 
             # run inputs through the model
             with torch.no_grad():
-                pred = model(fix_vol, mov_vol)
-                warp_seg = SpatialTransformer(mov_seg, pred[0])
-                
+                pred = model(fix_vol, mov_vol, mov_seg)
+            
             fix_seg = fix_seg.detach().cpu().numpy().squeeze()
-            warp_seg = warp_seg.detach().cpu().numpy().squeeze()
-            Dice_val = Dice(warp_seg, fix_seg, [1,2,3])
+            mov_seg = mov_seg.detach().cpu().numpy().squeeze()
+            
+            warp_seg = pred[5].detach().cpu().numpy().squeeze()
+            Dice_val = Dice(warp_seg, fix_seg)
             valid_Dice.append(Dice_val)
             
             flow = pred[0].detach().cpu().permute(0, 2, 3, 4, 1).numpy().squeeze()
             NJD_val = NJD(flow)
             valid_NJD.append(NJD_val)
+            
+            fix_pred = np.argmax(pred[3].detach().cpu().numpy().squeeze(), axis=0)
+            Dice_fix = Dice(fix_pred, fix_seg)
+            valid_Seg.append(Dice_fix)
+            
+            mov_pred = np.argmax(pred[4].detach().cpu().numpy().squeeze(), axis=0)
+            Dice_mov = Dice(mov_pred, mov_seg)
+            valid_Seg.append(Dice_mov)
         
         # print epoch info
         epoch_info = 'Epoch %d/%d' % (epoch + 1, epochs)
@@ -172,7 +181,8 @@ def train(train_dir,
         train_loss_info = 'Train loss: %.4f  (%s)' % (np.mean(train_total_loss), train_losses)
         valid_Dice_info = 'Valid DSC: %.4f' % (np.mean(valid_Dice))
         valid_NJD_info = 'Valid NJD: %.2f' % (np.mean(valid_NJD))
-        print(' - '.join((epoch_info, time_info, train_loss_info, valid_Dice_info, valid_NJD_info)), flush=True)
+        valid_Seg_info = 'Valid Seg DSC: %.4f' % (np.mean(valid_Seg))
+        print(' - '.join((epoch_info, time_info, train_loss_info, valid_Dice_info, valid_NJD_info, valid_Seg_info)), flush=True)
     
         # save model checkpoint
         torch.save(model.state_dict(), os.path.join(model_dir, '%02d.pt' % (epoch+1)))

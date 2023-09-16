@@ -1,5 +1,5 @@
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as nnF
 import numpy as np
 import math
 
@@ -37,7 +37,7 @@ class NCC:
             padding = (pad_no, pad_no, pad_no)
 
         # get convolution function
-        conv_fn = getattr(F, 'conv%dd' % ndims)
+        conv_fn = getattr(nnF, 'conv%dd' % ndims)
 
         # compute CC squares
         I2 = Ii * Ii

@@ -103,7 +103,7 @@ def test(test_dir,
         warp_seg = SpatialTransformer(mov_seg, pred[0])
         warp_seg = warp_seg.detach().cpu().numpy().squeeze()
         fix_seg = fix_seg.detach().cpu().numpy().squeeze()
-        Dice_val = Dice(warp_seg, fix_seg, [1,2,3])
+        Dice_val = Dice(warp_seg, fix_seg)
         Dice_result.append(Dice_val)
         
         flow = pred[0].detach().cpu().permute(0, 2, 3, 4, 1).numpy().squeeze()

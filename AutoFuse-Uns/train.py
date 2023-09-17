@@ -158,7 +158,7 @@ def train(train_dir,
                 
             fix_seg = fix_seg.detach().cpu().numpy().squeeze()
             warp_seg = warp_seg.detach().cpu().numpy().squeeze()
-            Dice_val = Dice(warp_seg, fix_seg, [1,2,3])
+            Dice_val = Dice(warp_seg, fix_seg)
             valid_Dice.append(Dice_val)
             
             flow = pred[0].detach().cpu().permute(0, 2, 3, 4, 1).numpy().squeeze()

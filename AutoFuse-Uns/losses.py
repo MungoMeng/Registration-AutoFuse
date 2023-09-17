@@ -140,7 +140,7 @@ class KL():
         x = torch.ones([1, ndims, *vol_shape])
         filt = self._adj_filt(ndims)
         
-        conv_fn = getattr(F, 'conv%dd' % ndims)
+        conv_fn = getattr(nnF, 'conv%dd' % ndims)
         return conv_fn(x, filt, padding='same', groups=ndims)
 
     def prec_loss(self, y_pred):

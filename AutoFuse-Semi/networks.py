@@ -252,106 +252,62 @@ class FusionPath(nn.Module):
 
 class SinglePath_Trans(nn.Module):
     
-    def __init__(self, 
+    def __init__(self,
                  in_channels: int,
-                 channel_num: int, 
+                 channel_num: int,
                  out_channels: int,
                  use_checkpoint: bool = False):
         super().__init__()
         
-        self.PatchEmbed = PatchEmbedding_block(patch_size=[2,2,2],
-                                               in_channels=in_channels,
-                                               embed_dim=channel_num)
-        
-        self.trans_1 = SwinTrans_stage_block(embed_dim=channel_num,
-                                             num_layers=2,
-                                             num_heads=channel_num//8,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-        self.trans_2 = SwinTrans_stage_block(embed_dim=channel_num*2,
-                                             num_layers=2,
-                                             num_heads=channel_num//4,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-        self.trans_3 = SwinTrans_stage_block(embed_dim=channel_num*4,
-                                             num_layers=2,
-                                             num_heads=channel_num//2,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-        self.trans_4 = SwinTrans_stage_block(embed_dim=channel_num*8,
-                                             num_layers=2,
-                                             num_heads=channel_num,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-        self.trans_5 = SwinTrans_stage_block(embed_dim=channel_num*4,
-                                             num_layers=2,
-                                             num_heads=channel_num//2,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-        self.trans_6 = SwinTrans_stage_block(embed_dim=channel_num*2,
-                                             num_layers=2,
-                                             num_heads=channel_num//4,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-        self.trans_7 = SwinTrans_stage_block(embed_dim=channel_num,
-                                             num_layers=2,
-                                             num_heads=channel_num//8,
-                                             window_size=[5,5,5],
-                                             use_checkpoint=use_checkpoint)
-                                             
         self.conv_1 = Conv_block(in_channels, channel_num//2, use_checkpoint)
-        self.conv_8 = Conv_block(channel_num//2+channel_num//2, channel_num//2, use_checkpoint)
+        self.conv_2 = Conv_block(channel_num//2, channel_num, use_checkpoint)
+        self.conv_3 = Conv_block(channel_num, channel_num*2, use_checkpoint)
+        self.conv_4 = Conv_block(channel_num*2, channel_num*4, use_checkpoint)
+        self.conv_5 = Conv_block(channel_num*4, channel_num*8, use_checkpoint)
+        self.conv_6 = Conv_block(channel_num*8+channel_num*4, channel_num*4, use_checkpoint)
+        self.conv_7 = Conv_block(channel_num*4+channel_num*2, channel_num*2, use_checkpoint)
+        self.conv_8 = Conv_block(channel_num*2+channel_num, channel_num, use_checkpoint)
+        self.conv_9 = Conv_block(channel_num+channel_num//2, channel_num//2, use_checkpoint)
         
-        self.downsample_1 = PatchMerging_block(embed_dim=channel_num)
-        self.downsample_2 = PatchMerging_block(embed_dim=channel_num*2)
-        self.downsample_3 = PatchMerging_block(embed_dim=channel_num*4)
-        
-        self.upsample_4 = PatchExpanding_block(embed_dim=channel_num*8)
-        self.upsample_5 = PatchExpanding_block(embed_dim=channel_num*4)
-        self.upsample_6 = PatchExpanding_block(embed_dim=channel_num*2)
-        
-        self.backdim_5 = nn.Conv3d(channel_num*4+channel_num*4, channel_num*4, kernel_size=1, stride=1, padding='same')
-        self.backdim_6 = nn.Conv3d(channel_num*2+channel_num*2, channel_num*2, kernel_size=1, stride=1, padding='same')
-        self.backdim_7 = nn.Conv3d(channel_num+channel_num, channel_num, kernel_size=1, stride=1, padding='same')
-        
-        self.ReverseEmbed = ReverseEmbedding_block(patch_size=[2,2,2], embed_dim=channel_num)
         self.seghead = SegHead_block(channel_num//2, out_channels, use_checkpoint)
+        self.downsample = nn.AvgPool3d(2, stride=2)
+        self.upsample = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 
     def forward(self, x_in):
 
-        x = self.PatchEmbed(x_in)
-        x_1 = self.trans_1(x)
+        x_1 = self.conv_1(x_in)
         
-        x = self.downsample_1(x_1)
-        x_2 = self.trans_2(x)
+        x = self.downsample(x_1)
+        x_2 = self.conv_2(x)
         
-        x = self.downsample_2(x_2)
-        x_3 = self.trans_3(x)
+        x = self.downsample(x_2)
+        x_3 = self.conv_3(x)
         
-        x = self.downsample_3(x_3)
-        x_4 = self.trans_4(x)
+        x = self.downsample(x_3)
+        x_4 = self.conv_4(x)
         
-        x = self.upsample_4(x_4)
+        x = self.downsample(x_4)
+        x_5 = self.conv_5(x)
+        
+        x = self.upsample(x_5)
+        x = torch.cat([x, x_4], dim=1)
+        x_6 = self.conv_6(x)
+        
+        x = self.upsample(x_6)
         x = torch.cat([x, x_3], dim=1)
-        x = self.backdim_5(x)
-        x_5 = self.trans_5(x)
+        x_7 = self.conv_7(x)
         
-        x = self.upsample_5(x_5)
+        x = self.upsample(x_7)
         x = torch.cat([x, x_2], dim=1)
-        x = self.backdim_6(x)
-        x_6 = self.trans_6(x)
+        x_8 = self.conv_8(x)
         
-        x = self.upsample_6(x_6)
+        x = self.upsample(x_8)
         x = torch.cat([x, x_1], dim=1)
-        x = self.backdim_7(x)
-        x_7 = self.trans_7(x)
+        x_9 = self.conv_9(x)
         
-        x = self.ReverseEmbed(x_7)
-        x = torch.cat([x, self.conv_1(x_in)], dim=1)
-        x = self.conv_8(x)
-        seg_pred = self.seghead(x)
+        seg_pred = self.seghead(x_9)
         
-        feat = [x_1, x_2, x_3, x_4, x_5, x_6, x_7]
+        feat = [x_2, x_3, x_4, x_5, x_6, x_7, x_8]
         return feat, seg_pred
     
     

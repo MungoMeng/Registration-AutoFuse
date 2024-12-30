@@ -7,4 +7,4 @@ Recently, Deep Neural Networks (DNNs) have been widely recognized for their abil
 
 ## Publication
 If this repository helps your work, please kindly cite our paper:
-* **Mingyuan Meng, Michael Fulham, Dagan Feng, Lei Bi, Jinman Kim, "AutoFuse: Automatic Fusion Networks for Unsupervised and Semi-supervised Deformable Medical Image Registration," Under review. [[arXiv](https://arxiv.org/abs/2309.05271)]**
+* **Mingyuan Meng, Michael Fulham, Dagan Feng, Lei Bi, Jinman Kim, "AutoFuse: Automatic Fusion Networks for Unsupervised and Semi-supervised Deformable Medical Image Registration," Pattern Recognition, in press, 2024. [[arXiv](https://arxiv.org/abs/2309.05271)]**
